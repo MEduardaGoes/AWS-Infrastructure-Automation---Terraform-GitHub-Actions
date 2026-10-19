@@ -4,7 +4,7 @@
 
 The workflow first runs `Security Guardrails`. Terraform checks and the S3
 Checkov baseline run only after that job succeeds. The final `CI Gate` requires
-all three jobs to succeed; failures, cancellations, or skipped dependencies do
+all required jobs, including the container lab, to succeed; failures, cancellations, or skipped dependencies do
 not count as approval. No job uses `continue-on-error`.
 
 | Guardrail | What it blocks |
@@ -14,6 +14,8 @@ not count as approval. No job uses `continue-on-error`.
 | Gitleaks 8.30.1 | Detected secrets anywhere in the fetched Git history |
 | Zizmor 1.31.1 | Workflow findings of low or higher severity and confidence, such as unsafe expressions and unpinned actions |
 | Existing Terraform and Checkov checks | Invalid configuration, failed mocked tests, or failed S3 baseline controls |
+| Trivy image scan | HIGH or CRITICAL vulnerabilities, including unfixed ones, or scanner/database errors |
+| Swarm smoke test | Failed healthchecks, HTTP probes, scaling, or rolling restart |
 
 Gitleaks uses its built-in rules and scans full fetched history, with findings
 fully redacted in logs. Its Linux binary version and archive SHA-256 are pinned.
@@ -25,7 +27,10 @@ outside this configuration's scope.
 Actions remain pinned by commit SHA. Runners use `ubuntu-24.04` to avoid silent
 OS migrations from the `ubuntu-latest` label. Timeouts, disabled persisted
 checkout credentials, and read-only default token permissions remain enabled.
-The final gate needs no repository permissions.
+The final gate needs no repository permissions. The container job runs as an
+unprivileged application user inside its image, but building and running Swarm
+requires Docker-daemon access on the disposable runner. It must not target a
+shared or production Docker daemon. Cleanup is attempted even on step failure.
 
 ## Make the Gate Required on GitHub
 

@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  api:
+    image: ${SWARM_IMAGE:-devsecops-swarm:local}
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    environment:
+      APP_VERSION: "1.0.0"
+    ports:
+      - target: 8080
+        published: 8081
+        protocol: tcp
+        mode: ingress
+    networks:
+      - app
+    stop_grace_period: 10s
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+        reservations:
+          cpus: "0.10"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 30s
+      update_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+        monitor: 15s
+        failure_action: rollback
+        max_failure_ratio: 0
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+        monitor: 15s
+
+networks:
+  app:
+    driver: overlay

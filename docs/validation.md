@@ -44,3 +44,25 @@ jobs were validated locally and still need their own GitHub execution after push
 See [security guardrail evidence](security-guardrails.md#validation-evidence) for
 the tool versions, successful checks, and negative tests proving that an unsafe
 workflow and a synthetic secret are rejected.
+
+## Docker Swarm Lab Extension
+
+Local checks on 2026-10-19:
+
+- Five API tests passed against a real loopback HTTP server using temporary ports.
+- Docker CLI 29.6.2 accepted `containers/stack.yml` with `docker stack config`.
+  Only the temporary CLI was used; no Docker daemon was installed or started.
+- Trivy 0.76.0 found no HIGH/CRITICAL Dockerfile misconfigurations. This was a
+  source-configuration scan, not a scan of the built container image.
+- The smoke-test script passed Bash syntax checking.
+- actionlint 1.7.12 and Zizmor 1.31.1 accepted the updated workflow.
+- Gitleaks 8.30.1 found no secrets in the pending extension files.
+- An ad hoc local probe executed the actual Bash gate body in 13 cases: all
+  success, plus each required job failing, being cancelled, or being skipped.
+  Every non-success case blocked the gate, including the container job.
+
+There is no Docker Engine in this environment. Image building, vulnerability
+analysis of the final image, replica health, scaling, rolling restart, and cleanup
+were not run locally. The added CI job will exercise them after publishing and
+will block `CI Gate` if any required operation fails. No successful Swarm run,
+automatic rollback test, image publication, or persistent deployment is claimed.

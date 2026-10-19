@@ -104,10 +104,89 @@ jobs:
           output_format: cli
           soft_fail: false
 
+  containers:
+    name: Docker Build, Scan and Swarm Lab
+    needs: guardrails
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SWARM_IMAGE: devsecops-swarm:ci
+      SWARM_STACK: devsecops-demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      - name: Test the demo API
+        run: python3 -m unittest discover -s containers/tests -v
+
+      - name: Validate the Swarm stack
+        run: docker stack config --compose-file containers/stack.yml
+
+      - name: Build the non-root image
+        run: docker build --pull --platform linux/amd64 --tag "$SWARM_IMAGE" containers
+
+      - name: Scan the Dockerfile for misconfigurations
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          scan-type: config
+          scan-ref: containers/Dockerfile
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          cache: false
+
+      - name: Scan the image for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          scan-type: image
+          image-ref: devsecops-swarm:ci
+          format: table
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
+          timeout: 10m
+          cache: false
+
+      - name: Deploy to a temporary single-node Swarm
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker swarm init --advertise-addr "$(hostname -I | awk '{print $1}')"
+          docker stack deploy --resolve-image never --compose-file containers/stack.yml "$SWARM_STACK"
+
+      - name: Test HTTP, scaling and rolling restart
+        run: bash containers/scripts/smoke-test.sh
+
+      - name: Collect Swarm diagnostics on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          docker service ls || true
+          docker service ps --no-trunc "${SWARM_STACK}_api" || true
+          docker service logs --tail 50 "${SWARM_STACK}_api" || true
+
+      - name: Clean up the temporary Swarm
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = active ]; then
+            if docker stack ls --format '{{.Name}}' | grep -qx "$SWARM_STACK"; then
+              docker stack rm "$SWARM_STACK"
+            fi
+            docker swarm leave --force
+          fi
+
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
-    needs: [guardrails, terraform, security]
+    needs: [guardrails, terraform, security, containers]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
@@ -117,10 +196,11 @@ jobs:
           GUARDRAILS_RESULT: ${{ needs.guardrails.result }}
           TERRAFORM_RESULT: ${{ needs.terraform.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
+          CONTAINERS_RESULT: ${{ needs.containers.result }}
         shell: bash
         run: |
           set -euo pipefail
-          for result in "$GUARDRAILS_RESULT" "$TERRAFORM_RESULT" "$SECURITY_RESULT"; do
+          for result in "$GUARDRAILS_RESULT" "$TERRAFORM_RESULT" "$SECURITY_RESULT" "$CONTAINERS_RESULT"; do
             if [ "$result" != "success" ]; then
               echo "CI Gate failed: a required job failed, was cancelled, or was skipped."
               exit 1

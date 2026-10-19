@@ -2,7 +2,7 @@
 
 An educational DevSecOps project with Terraform, GitHub Actions, and automated
 security checks. The current implementation validates an AWS S3 configuration
-without an AWS account or cloud deployment.
+without an AWS account. It also includes an isolated Docker Swarm delivery lab.
 
 ## What Works Without AWS Access
 
@@ -10,12 +10,13 @@ without an AWS account or cloud deployment.
 - Five test scenarios using a mocked AWS provider, including rejected inputs.
 - A focused Checkov security baseline for the example storage bucket.
 - Secret detection, workflow security audits, and tracked-file guardrails.
+- A non-root Docker image, image scan with Trivy, and an ephemeral Swarm test.
 - A GitHub Actions workflow triggered by pushes, pull requests, or manual runs.
 
-The original workflow has a successful GitHub Actions run. The new security
-guardrails require a new run after publishing. No AWS resources have been provisioned. Deployment,
-remote state, IAM, and OIDC remain future work. This project currently implements
-CI, not a completed CD deployment.
+The original Terraform workflow has a successful GitHub Actions run. The new
+container lab requires its own run after publishing. No AWS resources have been
+provisioned. AWS deployment, remote state, IAM, and OIDC remain future work.
+The Swarm deployment is temporary, not a persistent hosted application.
 
 ## Architecture
 
@@ -26,9 +27,13 @@ flowchart TD
     G --> C[Terraform Format and Validate]
     C --> D[Terraform Tests: Mocked AWS Provider]
     G --> E[Checkov: S3 Security Baseline]
+    G --> H[API Tests and Docker Build]
+    H --> I[Trivy: HIGH and CRITICAL Vulnerabilities]
+    I --> J[Temporary Swarm: Health, Scaling and Rolling Restart]
     G --> F[CI Gate]
     D --> F
     E --> F
+    J --> F
 ```
 
 ## Repository Structure
@@ -37,6 +42,14 @@ flowchart TD
 .
 |-- .github/workflows/ci.yml
 |-- .checkov.yml
+|-- containers/
+|   |-- app/main.py
+|   |-- tests/test_api.py
+|   |-- Dockerfile
+|   |-- .dockerignore
+|   |-- stack.yml
+|   |-- scripts/smoke-test.sh
+|   `-- README.md
 |-- scripts/check_tracked_files.py
 |-- tests/test_repository_guardrails.py
 |-- docs/security-guardrails.md
@@ -124,7 +137,7 @@ concurrency cancellation. It requests no AWS secrets or OIDC permissions.
 The `Security Guardrails` job blocks forbidden Git-tracked files, requires the
 provider lock file, scans Git history for secrets with Gitleaks, and audits the
 workflow with Zizmor. Terraform and Checkov jobs depend on this job. The final
-`CI Gate` fails unless all required jobs succeed. To block merges, configure
+`CI Gate` fails unless all required jobs, including the container lab, succeed. To block merges, configure
 `CI Gate` as a required status check in GitHub repository rules.
 
 See [security guardrails](docs/security-guardrails.md) for versions, scope,
@@ -132,6 +145,21 @@ local commands, and the GitHub settings that must be configured separately.
 
 Never commit states, saved plans, or credentials. The existing `.gitignore`
 excludes local Terraform data while keeping the provider lock file tracked.
+
+## Docker Swarm Lab
+
+See [the container lab](containers/README.md) for build, local deployment,
+scaling, rolling updates, rollback configuration, and cleanup instructions.
+The API uses Python's standard library and has no third-party dependencies.
+Its image runs as UID/GID 10001, includes a healthcheck, and is deployed with
+two replicas, a read-only filesystem, dropped capabilities, and resource limits.
+
+The container CI job builds the image, blocks HIGH/CRITICAL Trivy findings, and
+tests an ephemeral single-node Swarm before cleaning it up. No registry
+credentials are required. Local execution requires Docker Engine with Linux
+containers; the implementation environment has no Docker Engine, so actual
+build/scan/Swarm execution must be confirmed on GitHub. The demo API has no TLS
+or authentication and is intended only for an isolated lab.
 
 ## Demonstrate the Project
 
