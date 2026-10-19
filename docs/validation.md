@@ -33,9 +33,9 @@ The actionlint check did not run shellcheck or pyflakes. Mock tests do not verif
 AWS permissions, actual S3 behavior, account policies, remote state, or OIDC.
 Checkov covered the six explicitly selected controls, not its full policy set.
 
-The GitHub workflow has not been executed by this session. After publishing,
-record the real workflow-run URL and commit identifier here. Do not present these
-local results as evidence of a deployed AWS environment.
+The earlier Terraform CI was shown passing in GitHub Actions. After publishing
+the simplified workflow, record its real workflow-run URL and commit identifier
+here. Do not present local results as evidence of a deployed AWS environment.
 
 ## Security Guardrails Extension
 
@@ -45,24 +45,27 @@ See [security guardrail evidence](security-guardrails.md#validation-evidence) fo
 the tool versions, successful checks, and negative tests proving that an unsafe
 workflow and a synthetic secret are rejected.
 
-## Docker Swarm Lab Extension
+## S3-Focused Validation
 
-Local checks on 2026-10-19:
+After simplifying the project to S3 configuration security, local checks on
+2026-10-19 confirmed:
 
-- Five API tests passed against a real loopback HTTP server using temporary ports.
-- Docker CLI 29.6.2 accepted `containers/stack.yml` with `docker stack config`.
-  Only the temporary CLI was used; no Docker daemon was installed or started.
-- Trivy 0.76.0 found no HIGH/CRITICAL Dockerfile misconfigurations. This was a
-  source-configuration scan, not a scan of the built container image.
-- The smoke-test script passed Bash syntax checking.
-- actionlint 1.7.12 and Zizmor 1.31.1 accepted the updated workflow.
-- Gitleaks 8.30.1 found no secrets in the pending extension files.
-- An ad hoc local probe executed the actual Bash gate body in 13 cases: all
-  success, plus each required job failing, being cancelled, or being skipped.
-  Every non-success case blocked the gate, including the container job.
+- Terraform formatting, read-only-lock initialization, and validation passed.
+- Five mocked AWS test scenarios passed.
+- Five Python repository guardrail tests passed, and the tracked-file policy passed.
+- Checkov 3.3.29 passed all six selected controls with no failures, skips, or parsing errors.
+- Gitleaks 8.30.1 scanned five committed revisions with no secrets detected.
+- actionlint 1.7.12 accepted the simplified workflow; shellcheck and pyflakes were disabled.
+- Zizmor 1.31.1 reported no workflow findings with offline auditing.
+- A temporary probe executed the actual Bash `CI Gate` in ten cases: all jobs
+  succeeding, then each of the three required jobs failing, being cancelled, or
+  being skipped. All nine non-success cases correctly failed the gate.
 
-There is no Docker Engine in this environment. Image building, vulnerability
-analysis of the final image, replica health, scaling, rolling restart, and cleanup
-were not run locally. The added CI job will exercise them after publishing and
-will block `CI Gate` if any required operation fails. No successful Swarm run,
-automatic rollback test, image publication, or persistent deployment is claimed.
+A separate local copy of `main.tf` was changed to `block_public_acls = false`.
+Checkov rejected that copy with `CKV_AWS_53` and exit code 1: five controls passed
+and one failed. The real project's configuration was not weakened or deployed.
+
+The simplified workflow requires confirmation in a new GitHub Actions run after
+publishing. No commit, push, AWS credentials, or cloud provisioning was used for
+these local checks. The selected Checkov baseline does not represent a full
+production audit, and provider mocks do not prove live AWS behavior.
