@@ -34,3 +34,7 @@ crash.*.log
 
 # Keep the provider lock file tracked for reproducible provider versions
 !.terraform.lock.hcl
+
+# Python guardrail bytecode
+__pycache__/
+*.py[cod]

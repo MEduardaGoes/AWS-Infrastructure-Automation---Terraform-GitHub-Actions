@@ -9,10 +9,11 @@ without an AWS account or cloud deployment.
 - Terraform formatting and configuration validation.
 - Five test scenarios using a mocked AWS provider, including rejected inputs.
 - A focused Checkov security baseline for the example storage bucket.
+- Secret detection, workflow security audits, and tracked-file guardrails.
 - A GitHub Actions workflow triggered by pushes, pull requests, or manual runs.
 
-The workflow is implemented locally; a successful GitHub Actions run must be
-confirmed after publishing. No AWS resources have been provisioned. Deployment,
+The original workflow has a successful GitHub Actions run. The new security
+guardrails require a new run after publishing. No AWS resources have been provisioned. Deployment,
 remote state, IAM, and OIDC remain future work. This project currently implements
 CI, not a completed CD deployment.
 
@@ -21,10 +22,12 @@ CI, not a completed CD deployment.
 ```mermaid
 flowchart TD
     A[Push or Pull Request] --> B[GitHub Actions]
-    B --> C[Terraform Format and Validate]
+    B --> G[Security Guardrails: Files, Gitleaks, Zizmor]
+    G --> C[Terraform Format and Validate]
     C --> D[Terraform Tests: Mocked AWS Provider]
-    B --> E[Checkov: S3 Security Baseline]
-    D --> F[CI Results]
+    G --> E[Checkov: S3 Security Baseline]
+    G --> F[CI Gate]
+    D --> F
     E --> F
 ```
 
@@ -34,6 +37,10 @@ flowchart TD
 .
 |-- .github/workflows/ci.yml
 |-- .checkov.yml
+|-- scripts/check_tracked_files.py
+|-- tests/test_repository_guardrails.py
+|-- docs/security-guardrails.md
+|-- docs/validation.md
 |-- terraform/
 |   |-- main.tf
 |   |-- providers.tf
@@ -74,6 +81,7 @@ Null inputs are rejected. The provider defines `Project`, `Environment`, and
 Requirements: Git, Terraform >= 1.10.0 and < 2.0.0, and internet access for initial
 provider downloads. CI uses Terraform 1.16.6. The AWS provider constraint is
 `~> 6.0`, and `.terraform.lock.hcl` records the selected version.
+Local repository guardrail tests also require Python 3.10 or newer.
 
 From the repository root:
 
@@ -113,6 +121,15 @@ Actions are pinned by commit SHA. The workflow uses read-only repository
 permissions, disables persisted checkout credentials, and sets timeouts and
 concurrency cancellation. It requests no AWS secrets or OIDC permissions.
 
+The `Security Guardrails` job blocks forbidden Git-tracked files, requires the
+provider lock file, scans Git history for secrets with Gitleaks, and audits the
+workflow with Zizmor. Terraform and Checkov jobs depend on this job. The final
+`CI Gate` fails unless all required jobs succeed. To block merges, configure
+`CI Gate` as a required status check in GitHub repository rules.
+
+See [security guardrails](docs/security-guardrails.md) for versions, scope,
+local commands, and the GitHub settings that must be configured separately.
+
 Never commit states, saved plans, or credentials. The existing `.gitignore`
 excludes local Terraform data while keeping the provider lock file tracked.
 
@@ -122,7 +139,7 @@ See [local validation evidence](docs/validation.md) for the commands and results
 actually obtained during development.
 
 After reviewing and publishing the files, open the repository's Actions tab and
-confirm that both jobs pass. Capture the actual run and its commit identifier.
+confirm that all jobs, including `CI Gate`, pass. Capture the actual run and its commit identifier.
 For a failure demonstration, use a temporary branch to disable a public access
 block setting, confirm the checks fail, and restore the secure setting.
 

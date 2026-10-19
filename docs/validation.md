@@ -36,3 +36,11 @@ Checkov covered the six explicitly selected controls, not its full policy set.
 The GitHub workflow has not been executed by this session. After publishing,
 record the real workflow-run URL and commit identifier here. Do not present these
 local results as evidence of a deployed AWS environment.
+
+## Security Guardrails Extension
+
+The original CI has since been shown passing in GitHub Actions. The new guardrail
+jobs were validated locally and still need their own GitHub execution after push.
+See [security guardrail evidence](security-guardrails.md#validation-evidence) for
+the tool versions, successful checks, and negative tests proving that an unsafe
+workflow and a synthetic secret are rejected.
