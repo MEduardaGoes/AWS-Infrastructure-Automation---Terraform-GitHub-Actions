@@ -1,0 +1,64 @@
+name: Terraform Offline CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  AWS_EC2_METADATA_DISABLED: "true"
+
+jobs:
+  terraform:
+    name: Format, Validate and Mock Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b75000b53e9ce4de2b4712237bbdb711bdc92aba
+        with:
+          terraform_version: 1.16.6
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize without remote backend
+        run: terraform -chdir=terraform init -backend=false -lockfile=readonly -no-color
+
+      - name: Validate configuration
+        run: terraform -chdir=terraform validate -no-color
+
+      - name: Test with mocked AWS provider
+        run: terraform -chdir=terraform test -no-color
+
+  security:
+    name: S3 Security Baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      - name: Scan Terraform with Checkov
+        uses: bridgecrewio/checkov-action@6f26dc90000b74feb589a906cdfae540f5119895
+        with:
+          config_file: .checkov.yml
+          output_format: cli
+          soft_fail: false

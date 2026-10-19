@@ -1,0 +1,36 @@
+# Terraform working directories and local state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Saved plans and exported plan JSON can contain sensitive values
+*.tfplan
+*.tfplan.*
+*.plan
+*.plan.json
+
+# Local variables, backend configuration, and credentials
+*.tfvars
+*.tfvars.json
+*.tfbackend
+backend.hcl
+.env
+.env.*
+!.env.example
+.aws/
+
+# Local Terraform configuration and overrides
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash reports
+crash.log
+crash.*.log
+
+# Keep the provider lock file tracked for reproducible provider versions
+!.terraform.lock.hcl

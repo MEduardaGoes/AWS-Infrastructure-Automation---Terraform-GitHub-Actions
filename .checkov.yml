@@ -1,0 +1,16 @@
+directory:
+  - terraform
+framework:
+  - terraform
+# Explicit educational baseline; this is not a full production security audit.
+check:
+  - CKV_AWS_19
+  - CKV_AWS_21
+  - CKV_AWS_53
+  - CKV_AWS_54
+  - CKV_AWS_55
+  - CKV_AWS_56
+skip-download: true
+skip-results-upload: true
+download-external-modules: false
+compact: true
